@@ -7,6 +7,8 @@
  * in the app (config/config.js → ACTIVE_ENV), no server needed.
  */
 
+require('dotenv').config(); // load mock-server/.env locally (Railway injects its own env vars)
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -19,6 +21,20 @@ const PORT = process.env.PORT || 3000;
 // can exercise the app's retry / offline-queue paths. Set to "false" to disable.
 const SIMULATE_FAILURES = process.env.SIMULATE_FAILURES !== 'false';
 const FAILURE_RATE = 0.05;
+
+// ---------------------------------------------------------------------------
+// Discord notifications
+// ---------------------------------------------------------------------------
+// The webhook URL is read ONLY from the DISCORD_WEBHOOK_URL environment
+// variable, so the secret never lands in git.
+//   • Local:   put it in mock-server/.env  (gitignored)
+//   • Railway: add it under the service → Variables tab
+// Leave it unset to disable notifications.
+//
+// How to get a webhook URL:
+//   Discord → Server Settings → Integrations → Webhooks → New Webhook →
+//   pick a channel → Copy Webhook URL.
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || '';
 
 const DATA_DIR = path.join(__dirname, 'data');
 const SCANS_FILE = path.join(DATA_DIR, 'scans.json');
@@ -44,6 +60,42 @@ function readScans() {
 function writeScans(scans) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(SCANS_FILE, JSON.stringify(scans, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// Discord notification — fire-and-forget so it never blocks the API response
+// ---------------------------------------------------------------------------
+function notifyDiscord(record) {
+  if (!DISCORD_WEBHOOK_URL) return; // notifications disabled
+
+  const embed = {
+    title: '📦 New product scanned',
+    color: 0x2ecc71,
+    fields: [
+      { name: 'Action', value: String(record.action || '—'), inline: true },
+      { name: 'Quantity', value: String(record.quantity ?? '—'), inline: true },
+      { name: 'Format', value: String(record.format || '—'), inline: true },
+      { name: 'Scanned value', value: '```' + String(record.scanned_value || '—') + '```' },
+    ],
+    footer: {
+      text: `${record.device?.platform || 'unknown'} · ${record.device?.model || 'device'} · ${record.id}`,
+    },
+    timestamp: record.received_at,
+  };
+
+  if (record.notes) {
+    embed.fields.push({ name: 'Notes', value: String(record.notes) });
+  }
+
+  fetch(DISCORD_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'FlowOne Scan', embeds: [embed] }),
+  })
+    .then((r) => {
+      if (!r.ok) console.error(`  ! Discord webhook returned ${r.status}`);
+    })
+    .catch((err) => console.error('  ! Discord webhook failed:', err.message));
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +147,8 @@ app.post('/scan/ingest', (req, res) => {
   scans.push(record);
   writeScans(scans);
 
+  notifyDiscord(record); // post to Discord (no-op if no webhook configured)
+
   return res.status(200).json({ id, status: 'received' });
 });
 
@@ -121,12 +175,22 @@ app.get('/scans', (req, res) => {
 // ---------------------------------------------------------------------------
 function getLanIp() {
   const ifaces = os.networkInterfaces();
+  // Skip virtual adapters (VPNs, hypervisors) — the phone can't reach those.
+  const SKIP = /wireguard|surfshark|vpn|virtualbox|vmware|hyper-v|loopback|docker|tailscale|zerotier/i;
+
+  const candidates = [];
   for (const name of Object.keys(ifaces)) {
+    if (SKIP.test(name)) continue;
     for (const iface of ifaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+      if (iface.family !== 'IPv4' || iface.internal) continue;
+      if (iface.address.startsWith('169.254.')) continue; // link-local / unassigned
+      candidates.push({ name, address: iface.address });
     }
   }
-  return 'localhost';
+
+  // Prefer a real Wi-Fi / Ethernet adapter when present.
+  const preferred = candidates.find((c) => /wi-?fi|wireless|ethernet|en0|wlan/i.test(c.name));
+  return (preferred || candidates[0])?.address || 'localhost';
 }
 
 app.listen(PORT, '0.0.0.0', () => {
@@ -139,5 +203,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`│  ${pad('Demo:     demo@flowone.in / demo123')}│`);
   console.log('└─────────────────────────────────────────────┘');
   console.log(`  Simulated failures: ${SIMULATE_FAILURES ? `ON (${FAILURE_RATE * 100}%)` : 'OFF'}`);
+  console.log(`  Discord webhook:    ${DISCORD_WEBHOOK_URL ? 'ON' : 'OFF (paste URL in server.js or set DISCORD_WEBHOOK_URL)'}`);
   console.log(`  Phone should use:   http://${ip}:${PORT}`);
 });
