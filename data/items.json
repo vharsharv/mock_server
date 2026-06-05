@@ -1,0 +1,50 @@
+[
+  {
+    "item_id": "item_001",
+    "name": "Blue Gel Pen 0.5mm",
+    "sku": "STAT-PEN-001",
+    "unit": "pcs",
+    "category": "Stationery",
+    "description": "Smooth-flow blue gel ink pen, 0.5mm tip"
+  },
+  {
+    "item_id": "item_002",
+    "name": "A4 Copier Paper 75 GSM",
+    "sku": "STAT-PAP-A4",
+    "unit": "ream",
+    "category": "Stationery",
+    "description": "500-sheet ream, 75 GSM, bright white"
+  },
+  {
+    "item_id": "item_003",
+    "name": "USB-C Charging Cable 1m",
+    "sku": "ELEC-CBL-USBC",
+    "unit": "pcs",
+    "category": "Electronics",
+    "description": "USB-C to USB-A braided cable, 1 metre"
+  },
+  {
+    "item_id": "item_004",
+    "name": "Laptop Charger 65W USB-C",
+    "sku": "ELEC-CHG-65W",
+    "unit": "pcs",
+    "category": "Electronics",
+    "description": "65W GaN USB-C power adapter"
+  },
+  {
+    "item_id": "item_005",
+    "name": "Packing Tape 2 inch",
+    "sku": "PACK-TAP-2IN",
+    "unit": "roll",
+    "category": "Packaging",
+    "description": "Brown BOPP self-adhesive packing tape, 2 inch x 65m"
+  },
+  {
+    "item_id": "item_006",
+    "name": "Corrugated Box Medium",
+    "sku": "PACK-BOX-MED",
+    "unit": "pcs",
+    "category": "Packaging",
+    "description": "3-ply corrugated shipping box, 12x10x8 inch"
+  }
+]

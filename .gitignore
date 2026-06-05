@@ -1,3 +1,8 @@
 node_modules/
-data/
 .env
+scans-export.json
+
+# Ignore runtime data, but DO ship the seeded catalog so Railway has items.
+data/*
+!data/items.json
+!data/barcodes.json
